@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.github
+.gitignore
+.dockerignore
+.editorconfig
+.nvmrc
+.env*
+.vscode
+.idea
+.claude
+.claude.json
+CLAUDE.md
+*.log
+coverage
+Dockerfile

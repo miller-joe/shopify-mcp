@@ -1,0 +1,58 @@
+{
+  "name": "@miller-joe/shopify-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Shopify — Admin API tooling plus AI-driven product creation via ComfyUI image generation.",
+  "license": "MIT",
+  "author": "Joe Miller <joe@indivision.net> (https://github.com/miller-joe)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "shopify-mcp": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miller-joe/shopify-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/miller-joe/shopify-mcp/issues"
+  },
+  "homepage": "https://github.com/miller-joe/shopify-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "shopify",
+    "shopify-admin-api",
+    "ai-tools",
+    "comfyui",
+    "ecommerce",
+    "automation"
+  ]
+}
