@@ -94,6 +94,19 @@ Or point your MCP gateway at the Streamable HTTP endpoint.
 | `complete_draft_order` | Convert a draft order to a real order; `paymentPending` skips capture |
 | `delete_draft_order` | Delete a non-completed draft order |
 
+### Fulfillment
+
+| Tool | Description |
+|---|---|
+| `list_fulfillment_orders` | List an order's fulfillment orders (one per shipping location), with remaining quantities per line item |
+| `get_fulfillment_order` | Fetch a single fulfillment order |
+| `get_fulfillment` | Fetch a single fulfillment (shipment record) with tracking info |
+| `create_fulfillment` | Mark fulfillment orders (or specific quantities) as fulfilled; optionally attach tracking + notify customer |
+| `update_fulfillment_tracking` | Update carrier/number/url on an existing fulfillment |
+| `cancel_fulfillment` | Cancel a fulfillment by ID |
+
+Partial fulfillment is supported — pass specific `fulfillmentOrderLineItems` with `quantity` per line; omit the array to fulfill everything on the fulfillment order.
+
 ### Variants & product options
 
 | Tool | Description |
@@ -186,7 +199,7 @@ Requires Node 20+.
 - [x] Draft orders: create/update/complete/delete + list/get
 - [x] Collections + tagging: CRUD, product add/remove, `add_tags` / `remove_tags`
 - [x] Variants + product options: bulk create/update/delete/reorder + `add_product_options`
-- [ ] Fulfillment / fulfillment orders (shipping, tracking, cancel)
+- [x] Fulfillment: list/get fulfillment orders, create fulfillment (partial supported), update tracking, cancel
 - [ ] Metaobjects (separate from metafields)
 - [ ] OAuth token-exchange flow for new-app auth
 - [ ] ShopifyQL analytics wrappers
