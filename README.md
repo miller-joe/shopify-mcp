@@ -94,6 +94,19 @@ Or point your MCP gateway at the Streamable HTTP endpoint.
 | `complete_draft_order` | Convert a draft order to a real order; `paymentPending` skips capture |
 | `delete_draft_order` | Delete a non-completed draft order |
 
+### Variants & product options
+
+| Tool | Description |
+|---|---|
+| `list_variants` | List all variants of a product with their selected options, price, SKU, inventory |
+| `create_variants` | Bulk-create variants (up to 100) with option values, price, SKU, compareAtPrice, initial inventory |
+| `update_variants` | Bulk-update variant price, compareAtPrice, SKU, barcode, taxable, inventoryPolicy, option values |
+| `delete_variants` | Bulk-delete variants from a product |
+| `reorder_variants` | Set 1-indexed positions for variants |
+| `add_product_options` | Add options (Size/Color/…) with their possible values; up to 3 options per product |
+
+For an entirely new product, creating the first real variant requires `strategy="REMOVE_STANDALONE_VARIANT"` to replace the auto-generated "Default Title" variant.
+
 ### Collections & tagging
 
 | Tool | Description |
@@ -172,9 +185,9 @@ Requires Node 20+.
 - [x] Metafields: `set_metafield`, `list_metafields`, `delete_metafield`
 - [x] Draft orders: create/update/complete/delete + list/get
 - [x] Collections + tagging: CRUD, product add/remove, `add_tags` / `remove_tags`
+- [x] Variants + product options: bulk create/update/delete/reorder + `add_product_options`
 - [ ] Fulfillment / fulfillment orders (shipping, tracking, cancel)
 - [ ] Metaobjects (separate from metafields)
-- [ ] Variant pricing + bulk variants
 - [ ] OAuth token-exchange flow for new-app auth
 - [ ] ShopifyQL analytics wrappers
 - [ ] Webhook subscription management
