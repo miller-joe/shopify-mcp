@@ -25,6 +25,17 @@ export interface GenerateImageParams {
   checkpoint: string;
 }
 
+export interface RefineImageParams {
+  prompt: string;
+  negativePrompt?: string;
+  sourceImageUrl: string;
+  denoise?: number;
+  steps?: number;
+  cfg?: number;
+  seed?: number;
+  checkpoint: string;
+}
+
 export interface GenerateImageResult {
   promptId: string;
   imageUrls: string[];
@@ -64,6 +75,70 @@ export class ComfyUIClient {
       promptId: submit.prompt_id,
       imageUrls: extractImageUrls(entry, this.publicUrl),
       internalImageRefs: extractImageRefs(entry),
+    };
+  }
+
+  async refine(params: RefineImageParams): Promise<GenerateImageResult> {
+    const uploaded = await this.fetchAndUploadImage(params.sourceImageUrl);
+
+    const workflow = img2img({
+      prompt: params.prompt,
+      negativePrompt: params.negativePrompt ?? "",
+      sourceImage: uploaded.name,
+      denoise: params.denoise ?? 0.5,
+      steps: params.steps ?? 25,
+      cfg: params.cfg ?? 7,
+      seed: params.seed ?? Math.floor(Math.random() * 2 ** 32),
+      checkpoint: params.checkpoint,
+    });
+
+    const submit = await this.submit(workflow);
+    const entry = await this.waitForCompletion(submit.prompt_id);
+    return {
+      promptId: submit.prompt_id,
+      imageUrls: extractImageUrls(entry, this.publicUrl),
+      internalImageRefs: extractImageRefs(entry),
+    };
+  }
+
+  /** Fetch a source image URL and upload it into ComfyUI's input folder. */
+  async fetchAndUploadImage(
+    sourceUrl: string,
+  ): Promise<{ name: string; subfolder: string; type: string }> {
+    const res = await fetch(sourceUrl);
+    if (!res.ok) {
+      throw new Error(
+        `Source image fetch failed: ${res.status} ${res.statusText}`,
+      );
+    }
+    const contentType = res.headers.get("content-type") ?? "image/png";
+    const blob = new Blob([await res.arrayBuffer()], { type: contentType });
+    const filenameFromUrl = sourceUrl.split("/").pop()?.split("?")[0] ?? "source";
+    const safeName = filenameFromUrl.replace(/[^A-Za-z0-9._-]/g, "_");
+
+    const form = new FormData();
+    form.append("image", blob, safeName);
+    form.append("overwrite", "true");
+    form.append("type", "input");
+
+    const upload = await fetch(`${this.baseUrl}/upload/image`, {
+      method: "POST",
+      body: form,
+    });
+    if (!upload.ok) {
+      throw new Error(
+        `ComfyUI upload failed: ${upload.status} ${await upload.text()}`,
+      );
+    }
+    const body = (await upload.json()) as {
+      name: string;
+      subfolder?: string;
+      type?: string;
+    };
+    return {
+      name: body.name,
+      subfolder: body.subfolder ?? "",
+      type: body.type ?? "input",
     };
   }
 
@@ -141,6 +216,63 @@ function extractImageRefs(entry: HistoryEntry): ImageRef[] {
     }
   }
   return refs;
+}
+
+function img2img(params: {
+  prompt: string;
+  negativePrompt: string;
+  sourceImage: string;
+  denoise: number;
+  steps: number;
+  cfg: number;
+  seed: number;
+  checkpoint: string;
+}): Workflow {
+  return {
+    "10": {
+      class_type: "LoadImage",
+      inputs: { image: params.sourceImage, upload: "image" },
+    },
+    "11": {
+      class_type: "VAEEncode",
+      inputs: { pixels: ["10", 0], vae: ["4", 2] },
+    },
+    "3": {
+      class_type: "KSampler",
+      inputs: {
+        seed: params.seed,
+        steps: params.steps,
+        cfg: params.cfg,
+        sampler_name: "euler",
+        scheduler: "normal",
+        denoise: params.denoise,
+        model: ["4", 0],
+        positive: ["6", 0],
+        negative: ["7", 0],
+        latent_image: ["11", 0],
+      },
+    },
+    "4": {
+      class_type: "CheckpointLoaderSimple",
+      inputs: { ckpt_name: params.checkpoint },
+    },
+    "6": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: params.prompt, clip: ["4", 1] },
+    },
+    "7": {
+      class_type: "CLIPTextEncode",
+      inputs: { text: params.negativePrompt, clip: ["4", 1] },
+    },
+    "8": {
+      class_type: "VAEDecode",
+      inputs: { samples: ["3", 0], vae: ["4", 2] },
+    },
+    "9": {
+      class_type: "SaveImage",
+      inputs: { filename_prefix: "shopify-mcp-refined", images: ["8", 0] },
+    },
+  };
 }
 
 function txt2img(params: {

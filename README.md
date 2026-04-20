@@ -155,12 +155,23 @@ For an entirely new product, creating the first real variant requires `strategy=
 | `add_tags` | Add tags to any taggable resource (Product, Order, Customer, DraftOrder, Collection) |
 | `remove_tags` | Remove tags from a taggable resource |
 
+### Analytics (ShopifyQL)
+
+| Tool | Description |
+|---|---|
+| `run_shopifyql_query` | Run a ShopifyQL query and render the result as an ASCII table. Pass `raw=true` for the raw JSON payload. |
+
+Examples:
+- `FROM sales SHOW total_sales BY day SINCE -30d TIMESERIES`
+- `FROM products SHOW product_title, quantity_sold BY product_id SINCE -7d ORDER BY quantity_sold DESC LIMIT 10`
+
 ### ComfyUI bridge (when `COMFYUI_URL` is configured)
 
 | Tool | Description |
 |---|---|
 | `generate_and_create_product` | Generate an image and create a product with it, in one call. Title/description derive from the prompt if not given. |
 | `generate_product_image` | Generate an image and attach it to an existing product. |
+| `refine_product_image` | Run img2img on a product's featured image (or an explicit URL) and attach the refined result. Tune `denoise` 0–1 for how far the result drifts from the source. |
 | `bulk_regenerate_images` | For all products matching a query, run the generator with a templated prompt and attach fresh images. |
 
 Template placeholders for `bulk_regenerate_images`: `{title}`, `{handle}`.
@@ -223,6 +234,9 @@ Requires Node 20+.
 - [x] Fulfillment: list/get fulfillment orders, create fulfillment (partial supported), update tracking, cancel
 - [x] Webhooks: list/get/create/update/delete subscriptions
 - [x] Metaobjects: definitions list + metaobject CRUD (create, update, delete)
+- [x] ShopifyQL analytics: `run_shopifyql_query` with ASCII-table rendering
+- [x] Image refinement bridge: `refine_product_image` (ComfyUI img2img on product images)
+- [ ] OAuth token-exchange flow for new-app auth
 - [ ] OAuth token-exchange flow for new-app auth
 - [ ] ShopifyQL analytics wrappers
 - [ ] Webhook subscription management

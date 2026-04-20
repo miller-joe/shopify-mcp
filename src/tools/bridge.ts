@@ -72,6 +72,43 @@ const generateProductImageSchema = {
   checkpoint: z.string().optional(),
 };
 
+const refineProductImageSchema = {
+  product_id: z.string().describe("Product GID or numeric ID"),
+  prompt: z
+    .string()
+    .min(1)
+    .describe("Prompt guiding the refinement (img2img)."),
+  source_image_url: z
+    .string()
+    .url()
+    .optional()
+    .describe(
+      "URL of the source image. If omitted, uses the product's featured image.",
+    ),
+  denoise: z
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.5)
+    .describe("0 = no change, 1 = fully regenerate. Typical 0.3–0.7."),
+  negative_prompt: z.string().optional(),
+  steps: z.number().int().min(1).max(150).default(25),
+  cfg: z.number().min(1).max(30).default(7),
+  seed: z.number().int().optional(),
+  checkpoint: z.string().optional(),
+  alt_text: z.string().optional(),
+};
+
+const GET_FEATURED_IMAGE_QUERY = /* GraphQL */ `
+  query GetFeaturedImage($id: ID!) {
+    product(id: $id) {
+      id
+      title
+      featuredImage { url altText }
+    }
+  }
+`;
+
 const bulkRegenerateSchema = {
   product_query: z
     .string()
@@ -196,6 +233,67 @@ export function registerBridgeTools(
           {
             type: "text" as const,
             text: `Attached generated image to ${productId}\n  image: ${ref.filename} (uploaded via Shopify staged storage)\n  comfyui prompt_id: ${gen.promptId}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    "refine_product_image",
+    "Refine an existing product image with ComfyUI img2img, then attach the refined result to the product. Pass a source_image_url explicitly, or omit it to use the product's featured image. Lower denoise preserves more of the original; higher denoise follows the prompt more freely.",
+    refineProductImageSchema,
+    async (args) => {
+      const checkpoint = args.checkpoint ?? defaultCheckpoint;
+      const productId = toGid(args.product_id, "Product");
+
+      let sourceUrl = args.source_image_url;
+      if (!sourceUrl) {
+        const lookup = await shopify.graphql<{
+          product: {
+            id: string;
+            title: string;
+            featuredImage?: { url: string; altText?: string | null } | null;
+          } | null;
+        }>(GET_FEATURED_IMAGE_QUERY, { id: productId });
+        if (!lookup.product) {
+          throw new Error(`Product not found: ${productId}`);
+        }
+        if (!lookup.product.featuredImage?.url) {
+          throw new Error(
+            `Product ${productId} has no featured image. Pass source_image_url explicitly.`,
+          );
+        }
+        sourceUrl = lookup.product.featuredImage.url;
+      }
+
+      const result = await comfyui.refine({
+        prompt: args.prompt,
+        negativePrompt: args.negative_prompt,
+        sourceImageUrl: sourceUrl,
+        denoise: args.denoise,
+        steps: args.steps,
+        cfg: args.cfg,
+        seed: args.seed,
+        checkpoint,
+      });
+      if (result.internalImageRefs.length === 0) {
+        throw new Error("ComfyUI returned no refined images");
+      }
+      const ref = result.internalImageRefs[0]!;
+      const staged = await uploadRefToShopify(shopify, comfyui, ref);
+      await attachImages(shopify, productId, [staged], args.alt_text ?? args.prompt);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: [
+              `Refined image attached to ${productId}`,
+              `  source:   ${sourceUrl}`,
+              `  denoise:  ${args.denoise}`,
+              `  new file: ${ref.filename}`,
+              `  comfyui prompt_id: ${result.promptId}`,
+            ].join("\n"),
           },
         ],
       };
