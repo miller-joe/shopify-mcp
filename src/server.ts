@@ -18,6 +18,8 @@ import { registerDraftOrderTools } from "./tools/draft_orders.js";
 import { registerCollectionTools } from "./tools/collections.js";
 import { registerVariantTools } from "./tools/variants.js";
 import { registerFulfillmentTools } from "./tools/fulfillment.js";
+import { registerWebhookTools } from "./tools/webhooks.js";
+import { registerMetaobjectTools } from "./tools/metaobjects.js";
 import { registerBridgeTools } from "./tools/bridge.js";
 
 export interface ServerConfig {
@@ -63,6 +65,8 @@ export async function startServer(config: ServerConfig): Promise<void> {
     registerCollectionTools(s, shopify);
     registerVariantTools(s, shopify);
     registerFulfillmentTools(s, shopify);
+    registerWebhookTools(s, shopify);
+    registerMetaobjectTools(s, shopify);
     registerBridgeTools(s, shopify, comfyui, config.comfyUIDefaultCkpt);
     return s;
   };

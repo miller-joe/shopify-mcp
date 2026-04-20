@@ -94,6 +94,27 @@ Or point your MCP gateway at the Streamable HTTP endpoint.
 | `complete_draft_order` | Convert a draft order to a real order; `paymentPending` skips capture |
 | `delete_draft_order` | Delete a non-completed draft order |
 
+### Webhooks
+
+| Tool | Description |
+|---|---|
+| `list_webhooks` | List webhook subscriptions; filter by topic(s) |
+| `get_webhook` | Fetch a single subscription |
+| `create_webhook` | Subscribe an HTTPS callback URL to a topic (e.g. `ORDERS_CREATE`) |
+| `update_webhook` | Change callback URL, format, or field/metafield filters |
+| `delete_webhook` | Delete a subscription |
+
+### Metaobjects
+
+| Tool | Description |
+|---|---|
+| `list_metaobject_definitions` | Discover metaobject types (schemas) on the store, including field definitions |
+| `list_metaobjects` | List metaobjects of a given type |
+| `get_metaobject` | Fetch one metaobject with all its fields |
+| `create_metaobject` | Create a metaobject (type must already exist as a definition); supports `ACTIVE`/`DRAFT` status |
+| `update_metaobject` | Upsert fields, change handle, toggle publishable status |
+| `delete_metaobject` | Delete a metaobject |
+
 ### Fulfillment
 
 | Tool | Description |
@@ -200,7 +221,8 @@ Requires Node 20+.
 - [x] Collections + tagging: CRUD, product add/remove, `add_tags` / `remove_tags`
 - [x] Variants + product options: bulk create/update/delete/reorder + `add_product_options`
 - [x] Fulfillment: list/get fulfillment orders, create fulfillment (partial supported), update tracking, cancel
-- [ ] Metaobjects (separate from metafields)
+- [x] Webhooks: list/get/create/update/delete subscriptions
+- [x] Metaobjects: definitions list + metaobject CRUD (create, update, delete)
 - [ ] OAuth token-exchange flow for new-app auth
 - [ ] ShopifyQL analytics wrappers
 - [ ] Webhook subscription management
