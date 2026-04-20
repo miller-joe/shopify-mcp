@@ -13,6 +13,9 @@ import { registerProductTools } from "./tools/products.js";
 import { registerOrderTools } from "./tools/orders.js";
 import { registerInventoryTools } from "./tools/inventory.js";
 import { registerCustomerTools } from "./tools/customers.js";
+import { registerMetafieldTools } from "./tools/metafields.js";
+import { registerDraftOrderTools } from "./tools/draft_orders.js";
+import { registerCollectionTools } from "./tools/collections.js";
 import { registerBridgeTools } from "./tools/bridge.js";
 
 export interface ServerConfig {
@@ -53,6 +56,9 @@ export async function startServer(config: ServerConfig): Promise<void> {
     registerOrderTools(s, shopify);
     registerInventoryTools(s, shopify);
     registerCustomerTools(s, shopify);
+    registerMetafieldTools(s, shopify);
+    registerDraftOrderTools(s, shopify);
+    registerCollectionTools(s, shopify);
     registerBridgeTools(s, shopify, comfyui, config.comfyUIDefaultCkpt);
     return s;
   };

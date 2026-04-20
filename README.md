@@ -75,6 +75,39 @@ Or point your MCP gateway at the Streamable HTTP endpoint.
 | `list_locations` | List store locations (for inventory ops) |
 | `list_customers` | List customers with query filters |
 
+### Metafields
+
+| Tool | Description |
+|---|---|
+| `set_metafield` | Upsert a metafield on any `HasMetafields` resource (product, variant, collection, customer, order, shop, …) |
+| `list_metafields` | List metafields for a resource, optionally filtered by namespace |
+| `delete_metafield` | Delete a metafield by (ownerId, namespace, key) |
+
+### Draft orders
+
+| Tool | Description |
+|---|---|
+| `list_draft_orders` | List draft orders with Shopify query filters |
+| `get_draft_order` | Fetch one draft order with its line items |
+| `create_draft_order` | Create a draft order; line items can be variant refs or custom (title + price) |
+| `update_draft_order` | Update customer, line items, tags, note, email |
+| `complete_draft_order` | Convert a draft order to a real order; `paymentPending` skips capture |
+| `delete_draft_order` | Delete a non-completed draft order |
+
+### Collections & tagging
+
+| Tool | Description |
+|---|---|
+| `list_collections` | List collections with query filters |
+| `get_collection` | Fetch one collection with its products |
+| `create_collection` | Create a manual collection, optionally seeded with products |
+| `update_collection` | Update title, description, or handle |
+| `delete_collection` | Delete a collection |
+| `add_products_to_collection` | Add products to a manual collection (async job on Shopify's side) |
+| `remove_products_from_collection` | Remove products from a manual collection |
+| `add_tags` | Add tags to any taggable resource (Product, Order, Customer, DraftOrder, Collection) |
+| `remove_tags` | Remove tags from a taggable resource |
+
 ### ComfyUI bridge (when `COMFYUI_URL` is configured)
 
 | Tool | Description |
@@ -136,9 +169,11 @@ Requires Node 20+.
 - [x] Inventory set + locations
 - [x] Customers read
 - [x] ComfyUI bridge: `generate_and_create_product`, `generate_product_image`, `bulk_regenerate_images`
-- [ ] Draft orders / checkout / fulfillment
-- [ ] Metafields / metaobjects
-- [ ] Collections / tagging ops
+- [x] Metafields: `set_metafield`, `list_metafields`, `delete_metafield`
+- [x] Draft orders: create/update/complete/delete + list/get
+- [x] Collections + tagging: CRUD, product add/remove, `add_tags` / `remove_tags`
+- [ ] Fulfillment / fulfillment orders (shipping, tracking, cancel)
+- [ ] Metaobjects (separate from metafields)
 - [ ] Variant pricing + bulk variants
 - [ ] OAuth token-exchange flow for new-app auth
 - [ ] ShopifyQL analytics wrappers
