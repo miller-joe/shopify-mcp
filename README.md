@@ -237,10 +237,6 @@ Requires Node 20+.
 - [x] ShopifyQL analytics: `run_shopifyql_query` with ASCII-table rendering
 - [x] Image refinement bridge: `refine_product_image` (ComfyUI img2img on product images)
 - [ ] OAuth token-exchange flow for new-app auth
-- [ ] OAuth token-exchange flow for new-app auth
-- [ ] ShopifyQL analytics wrappers
-- [ ] Webhook subscription management
-- [ ] Image refinement: given an existing product image, run ComfyUI img2img for controlled variations
 
 ## License
 
