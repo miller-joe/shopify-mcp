@@ -1,6 +1,7 @@
 {
   "name": "@miller-joe/shopify-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
+  "mcpName": "io.github.miller-joe/shopify-mcp",
   "description": "MCP server for Shopify — Admin API tooling plus AI-driven product creation via ComfyUI image generation.",
   "license": "MIT",
   "author": "Joe Miller <joe@indivision.net> (https://github.com/miller-joe)",
