@@ -3,7 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ShopifyClient } from "../shopify/client.js";
 import { throwIfUserErrors } from "../shopify/client.js";
 import type { Connection, Product, ShopifyUserError } from "../shopify/types.js";
-import type { ComfyUIClient } from "../comfyui/client.js";
+import type { ComfyUIClient, ImageRef } from "../comfyui/client.js";
+import { stagedUploadImage } from "../shopify/upload.js";
 import { attachImages, toGid } from "./products.js";
 
 const CREATE_PRODUCT_MUTATION = /* GraphQL */ `
@@ -121,10 +122,11 @@ export function registerBridgeTools(
         seed: args.seed,
         checkpoint,
       });
-      if (gen.imageUrls.length === 0) {
+      if (gen.internalImageRefs.length === 0) {
         throw new Error("ComfyUI returned no images");
       }
-      const imageUrl = gen.imageUrls[0]!;
+      const ref = gen.internalImageRefs[0]!;
+      const stagedResource = await uploadRefToShopify(shopify, comfyui, ref);
 
       const title = args.title ?? titleFromPrompt(args.prompt);
       const description =
@@ -149,13 +151,13 @@ export function registerBridgeTools(
       const product = created.productCreate.product;
       if (!product) throw new Error("productCreate returned no product");
 
-      await attachImages(shopify, product.id, [imageUrl], title);
+      await attachImages(shopify, product.id, [stagedResource], title);
 
       const lines = [
         `Created ${args.status} product: ${product.title}`,
         `  id:     ${product.id}`,
         `  handle: ${product.handle}`,
-        `  image:  ${imageUrl}`,
+        `  image:  ${ref.filename} (uploaded via Shopify staged storage)`,
         `  comfyui prompt_id: ${gen.promptId}`,
       ];
       if (args.price) {
@@ -182,17 +184,18 @@ export function registerBridgeTools(
         seed: args.seed,
         checkpoint,
       });
-      if (gen.imageUrls.length === 0) {
+      if (gen.internalImageRefs.length === 0) {
         throw new Error("ComfyUI returned no images");
       }
-      const imageUrl = gen.imageUrls[0]!;
+      const ref = gen.internalImageRefs[0]!;
+      const stagedResource = await uploadRefToShopify(shopify, comfyui, ref);
       const productId = toGid(args.product_id, "Product");
-      await attachImages(shopify, productId, [imageUrl], args.alt_text ?? args.prompt);
+      await attachImages(shopify, productId, [stagedResource], args.alt_text ?? args.prompt);
       return {
         content: [
           {
             type: "text" as const,
-            text: `Attached generated image to ${productId}\n  image: ${imageUrl}\n  comfyui prompt_id: ${gen.promptId}`,
+            text: `Attached generated image to ${productId}\n  image: ${ref.filename} (uploaded via Shopify staged storage)\n  comfyui prompt_id: ${gen.promptId}`,
           },
         ],
       };
@@ -236,12 +239,14 @@ export function registerBridgeTools(
             cfg: args.cfg,
             checkpoint,
           });
-          if (gen.imageUrls.length === 0) {
+          if (gen.internalImageRefs.length === 0) {
             results.push(`  ✗ ${p.title}: ComfyUI returned no images`);
             continue;
           }
-          await attachImages(shopify, p.id, [gen.imageUrls[0]!], p.title);
-          results.push(`  ✓ ${p.title} — ${gen.imageUrls[0]}`);
+          const ref = gen.internalImageRefs[0]!;
+          const stagedResource = await uploadRefToShopify(shopify, comfyui, ref);
+          await attachImages(shopify, p.id, [stagedResource], p.title);
+          results.push(`  ✓ ${p.title} — ${ref.filename}`);
         } catch (err) {
           results.push(`  ✗ ${p.title}: ${(err as Error).message}`);
         }
@@ -260,6 +265,15 @@ export function registerBridgeTools(
       };
     },
   );
+}
+
+async function uploadRefToShopify(
+  shopify: ShopifyClient,
+  comfyui: ComfyUIClient,
+  ref: ImageRef,
+): Promise<string> {
+  const { bytes, contentType } = await comfyui.fetchImageBytes(ref);
+  return stagedUploadImage(shopify, bytes, ref.filename, contentType);
 }
 
 function titleFromPrompt(prompt: string): string {

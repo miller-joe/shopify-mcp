@@ -28,6 +28,13 @@ export interface GenerateImageParams {
 export interface GenerateImageResult {
   promptId: string;
   imageUrls: string[];
+  internalImageRefs: ImageRef[];
+}
+
+export interface ImageRef {
+  filename: string;
+  subfolder: string;
+  type: string;
 }
 
 export class ComfyUIClient {
@@ -56,7 +63,24 @@ export class ComfyUIClient {
     return {
       promptId: submit.prompt_id,
       imageUrls: extractImageUrls(entry, this.publicUrl),
+      internalImageRefs: extractImageRefs(entry),
     };
+  }
+
+  /** Fetch raw image bytes from ComfyUI using the internal base URL. */
+  async fetchImageBytes(ref: ImageRef): Promise<{ bytes: Uint8Array; contentType: string }> {
+    const params = new URLSearchParams({
+      filename: ref.filename,
+      subfolder: ref.subfolder,
+      type: ref.type,
+    });
+    const res = await fetch(`${this.baseUrl}/view?${params.toString()}`);
+    if (!res.ok) {
+      throw new Error(`ComfyUI view fetch failed: ${res.status}`);
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const contentType = res.headers.get("content-type") ?? "image/png";
+    return { bytes: buf, contentType };
   }
 
   private async submit(workflow: Workflow): Promise<PromptSubmitResponse> {
@@ -103,6 +127,20 @@ function extractImageUrls(entry: HistoryEntry, baseUrl: string): string[] {
     }
   }
   return urls;
+}
+
+function extractImageRefs(entry: HistoryEntry): ImageRef[] {
+  const refs: ImageRef[] = [];
+  for (const output of Object.values(entry.outputs)) {
+    for (const image of output.images ?? []) {
+      refs.push({
+        filename: image.filename,
+        subfolder: image.subfolder,
+        type: image.type,
+      });
+    }
+  }
+  return refs;
 }
 
 function txt2img(params: {
