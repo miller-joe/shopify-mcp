@@ -2,7 +2,7 @@
 
 MCP server for [Shopify](https://shopify.dev). Full Admin GraphQL API tooling plus an AI-driven product creation bridge via [ComfyUI](https://github.com/comfyanonymous/ComfyUI) image generation.
 
-[![Glama MCP server](https://glama.ai/mcp/servers/miller-joe/shopify-mcp/badge)](https://glama.ai/mcp/servers/miller-joe/shopify-mcp)
+[![shopify-mcp MCP server](https://glama.ai/mcp/servers/miller-joe/shopify-mcp/badges/card.svg)](https://glama.ai/mcp/servers/miller-joe/shopify-mcp)
 
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/miller-joe?style=social&logo=github)](https://github.com/sponsors/miller-joe)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/indivisionjoe)
