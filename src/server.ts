@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import {
@@ -39,22 +40,18 @@ interface Session {
   transport: StreamableHTTPServerTransport;
 }
 
-export async function startServer(config: ServerConfig): Promise<void> {
+function buildContext(config: ServerConfig) {
   const shopify = new ShopifyClient({
     store: config.shopifyStore,
     accessToken: config.shopifyAccessToken,
     apiVersion: config.shopifyApiVersion,
   });
-
   const comfyui = config.comfyUIUrl
     ? new ComfyUIClient({
         baseUrl: config.comfyUIUrl,
         publicUrl: config.comfyUIPublicUrl ?? config.comfyUIUrl,
       })
     : null;
-
-  const sessions = new Map<string, Session>();
-
   const buildServer = () => {
     const s = new McpServer({ name: "shopify-mcp", version: "0.1.0" });
     registerProductTools(s, shopify);
@@ -72,6 +69,19 @@ export async function startServer(config: ServerConfig): Promise<void> {
     registerBridgeTools(s, shopify, comfyui, config.comfyUIDefaultCkpt);
     return s;
   };
+  return { comfyui, buildServer };
+}
+
+export async function startStdioServer(config: ServerConfig): Promise<void> {
+  const { buildServer } = buildContext(config);
+  const server = buildServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+export async function startServer(config: ServerConfig): Promise<void> {
+  const { comfyui, buildServer } = buildContext(config);
+  const sessions = new Map<string, Session>();
 
   const httpServer = createServer(async (req, res) => {
     try {

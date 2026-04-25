@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { startServer } from "./server.js";
+import { startServer, startStdioServer } from "./server.js";
 
 const { values } = parseArgs({
   options: {
@@ -11,6 +11,7 @@ const { values } = parseArgs({
     "shopify-api-version": { type: "string" },
     "comfyui-url": { type: "string" },
     "comfyui-public-url": { type: "string" },
+    stdio: { type: "boolean" },
     help: { type: "boolean", short: "h" },
   },
 });
@@ -35,6 +36,10 @@ if (values.help) {
       "                                   When unset, generate_* bridge tools are disabled",
       "  --comfyui-public-url <url>       Externally-reachable ComfyUI URL used in image URLs",
       "                                   (env: COMFYUI_PUBLIC_URL, default: same as --comfyui-url)",
+      "  --stdio                          Speak MCP over stdio instead of starting an HTTP",
+      "                                   server. Use when launched as a subprocess by an",
+      "                                   MCP client (Claude Desktop, mcp-inspector, etc.)",
+      "                                   (env: MCP_TRANSPORT=stdio)",
       "  -h, --help                       Show this help",
       "",
       "Other env:",
@@ -62,24 +67,28 @@ const comfyUIDefaultCkpt =
 
 if (!shopifyStore) {
   process.stderr.write(
-    "Error: SHOPIFY_STORE or --shopify-store is required\n",
+    "Warning: SHOPIFY_STORE / --shopify-store not set. Shopify tool calls will fail until configured.\n",
   );
-  process.exit(1);
 }
 if (!shopifyAccessToken) {
   process.stderr.write(
-    "Error: SHOPIFY_ACCESS_TOKEN or --shopify-access-token is required\n",
+    "Warning: SHOPIFY_ACCESS_TOKEN / --shopify-access-token not set. Shopify tool calls will fail until configured.\n",
   );
-  process.exit(1);
 }
 
-await startServer({
+const useStdio = values.stdio || process.env.MCP_TRANSPORT === "stdio";
+const config = {
   host,
   port,
-  shopifyStore,
-  shopifyAccessToken,
+  shopifyStore: shopifyStore ?? "",
+  shopifyAccessToken: shopifyAccessToken ?? "",
   shopifyApiVersion,
   comfyUIUrl,
   comfyUIPublicUrl,
   comfyUIDefaultCkpt,
-});
+};
+if (useStdio) {
+  await startStdioServer(config);
+} else {
+  await startServer(config);
+}
