@@ -116,7 +116,7 @@ export function registerMetafieldTools(
 ): void {
   server.tool(
     "set_metafield",
-    "Create or update a metafield on any supported Shopify resource (product, variant, collection, customer, order, shop, etc.). Uses metafieldsSet (upsert).",
+    "Create or update (upsert) a single metafield on any supported Shopify resource — product, variant, collection, customer, order, draft order, shop, or shop policies. The (ownerId, namespace, key) triple is the unique identifier; calling this tool with an existing triple replaces the value, otherwise creates a new metafield. The `type` must be a Shopify-supported metafield type and the `value` must serialize per that type — e.g. JSON types take a JSON string, references take a target GID, primitives take literal text. Errors come back as MCP tool errors with the validation messages from Shopify.",
     setMetafieldSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -163,7 +163,7 @@ export function registerMetafieldTools(
 
   server.tool(
     "list_metafields",
-    "List metafields on a Shopify resource. Optionally filter by namespace.",
+    "List metafields attached to a single Shopify resource. Returns each metafield's namespace.key, type, current value, and optional description. Pass a `namespace` to scope the read to one app/integration's metafields (recommended when the resource has many). Empty result is normal for resources without metafields. Use this to inspect existing custom data before calling set_metafield, or to audit which apps have written what to a record.",
     listMetafieldsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -212,7 +212,7 @@ export function registerMetafieldTools(
 
   server.tool(
     "delete_metafield",
-    "Delete a metafield by (ownerId, namespace, key).",
+    "Permanently delete a single metafield by (ownerId, namespace, key). Irreversible — the value is gone after this call. Use list_metafields first to confirm the namespace and key, since typos result in a no-op rather than an error. Other metafields on the same resource are unaffected. To delete every metafield on a resource, you'd need a list+loop pattern; this tool only deletes one at a time.",
     deleteMetafieldSchema,
     async (args) => {
       const data = await client.graphql<{

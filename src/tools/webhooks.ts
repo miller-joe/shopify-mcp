@@ -198,7 +198,7 @@ export function registerWebhookTools(
 ): void {
   server.tool(
     "list_webhooks",
-    "List webhook subscriptions on the store, optionally filtered by topic(s).",
+    "List webhook subscriptions on the store. Each subscription wires a Shopify event topic (ORDERS_CREATE, PRODUCTS_UPDATE, INVENTORY_LEVELS_UPDATE, etc.) to a delivery target — typically an HTTPS callback URL, but Pub/Sub and EventBridge are also supported. Returns each subscription's topic, delivery format (JSON/XML), endpoint, API version, and any field/metafield filters applied. Filter by topic to scope the result. Use this to audit existing automation hooks before creating new ones.",
     listWebhooksSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -232,7 +232,7 @@ export function registerWebhookTools(
 
   server.tool(
     "get_webhook",
-    "Fetch a single webhook subscription by ID.",
+    "Fetch a single webhook subscription's full configuration by GID — topic, endpoint, format, API version, includeFields filter, metafield namespaces, and timestamps. Use to verify subscription details before update or delete, or when debugging delivery issues.",
     getWebhookSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -263,7 +263,7 @@ export function registerWebhookTools(
 
   server.tool(
     "create_webhook",
-    "Create a webhook subscription that POSTs to an HTTPS callback URL when a given event occurs.",
+    "Subscribe to a Shopify event topic and have payloads POSTed to your HTTPS endpoint. Common topics: ORDERS_CREATE, ORDERS_PAID, ORDERS_FULFILLED, PRODUCTS_CREATE, PRODUCTS_UPDATE, INVENTORY_LEVELS_UPDATE, CUSTOMERS_CREATE, APP_UNINSTALLED. Use includeFields to receive only specific fields in the payload (reduces bandwidth and avoids leaking unrelated data). metafieldNamespaces opts in to including metafields from the listed namespaces. callbackUrl must be HTTPS in production. Returns the new subscription's GID; verify delivery is working with a few real events before relying on it.",
     createWebhookSchema,
     async (args) => {
       const webhookSubscription: Record<string, unknown> = {
@@ -310,7 +310,7 @@ export function registerWebhookTools(
 
   server.tool(
     "update_webhook",
-    "Update an existing webhook subscription's callback URL, format, or field/metafield filters. Topic cannot be changed.",
+    "Modify an existing webhook subscription's callback URL, payload format, includeFields filter, or metafield-namespace filter. Topic cannot be changed — to switch event types, delete and recreate the subscription. Use when migrating an endpoint to a new domain, switching from JSON to XML, or tightening payload size by adding includeFields. Omitted parameters are left unchanged.",
     updateWebhookSchema,
     async (args) => {
       const webhookSubscription: Record<string, unknown> = {};
@@ -354,7 +354,7 @@ export function registerWebhookTools(
 
   server.tool(
     "delete_webhook",
-    "Delete a webhook subscription by ID.",
+    "Permanently unsubscribe from an event topic by deleting the webhook subscription. Stops all future deliveries to that endpoint for that topic — irreversible (you'd have to re-create with create_webhook). Use when retiring an integration or switching topics. Returns the deleted GID, or a no-op message if nothing matched.",
     deleteWebhookSchema,
     async (args) => {
       const data = await client.graphql<{

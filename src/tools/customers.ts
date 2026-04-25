@@ -25,14 +25,25 @@ const LIST_CUSTOMERS_QUERY = /* GraphQL */ `
 `;
 
 const listCustomersSchema = {
-  first: z.number().int().min(1).max(100).default(20),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20)
+    .describe("Page size (1-100)."),
   query: z
     .string()
     .optional()
     .describe(
-      "Shopify customer query, e.g. 'email:*@gmail.com', 'tag:vip', 'orders_count:>=5'",
+      "Shopify customer query syntax. Examples: 'email:*@gmail.com' (domain match), 'tag:vip' (tagged), 'orders_count:>=5' (repeat customer), 'amount_spent:>=500' (high value), 'state:enabled', 'accepts_marketing:true'. Combine with AND/OR.",
     ),
-  after: z.string().optional(),
+  after: z
+    .string()
+    .optional()
+    .describe(
+      "Cursor from the previous page's pageInfo for pagination. Omit on the first call.",
+    ),
 };
 
 export function registerCustomerTools(
@@ -41,7 +52,7 @@ export function registerCustomerTools(
 ): void {
   server.tool(
     "list_customers",
-    "List customers, newest first. Supports Shopify customer query filtering.",
+    "List customers in the store, newest first by creation date. Returns each customer's display name, email, lifetime order count, and total amount spent (in shop currency). Supports Shopify's customer query syntax for filtering by email, tag, order count, spend, marketing-consent, account state, and more. Cursor-paginated; pass `after` to advance pages. Use this to find customer GIDs before referencing them in draft orders or to segment for marketing.",
     listCustomersSchema,
     async (args) => {
       const data = await client.graphql<{ customers: Connection<Customer> }>(

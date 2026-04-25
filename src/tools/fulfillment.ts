@@ -261,7 +261,7 @@ export function registerFulfillmentTools(
 ): void {
   server.tool(
     "list_fulfillment_orders",
-    "List fulfillment orders for an order. Each fulfillment order groups line items by the location that will ship them and holds the quantities still awaiting fulfillment.",
+    "List the fulfillment orders attached to a Shopify order. A fulfillment order groups line items by the location that will ship them — a single order can have multiple fulfillment orders if items split across warehouses. Each one tracks per-line remaining quantity (totalQuantity minus what's already shipped/cancelled). Returns the assigned location, destination address, and line-item progress for each. This is the primary read tool you'll call before create_fulfillment to figure out which fulfillmentOrderLineItem IDs and quantities to mark as shipped.",
     listFulfillmentOrdersSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -307,7 +307,7 @@ export function registerFulfillmentTools(
 
   server.tool(
     "get_fulfillment_order",
-    "Fetch a single fulfillment order with its line items and remaining quantities.",
+    "Fetch a single fulfillment order by GID with its full line-item set and remaining quantities. Use this when you have the FulfillmentOrder ID directly (e.g. from a webhook payload) and want detail without having to look up its parent order first. Returns the same shape as list_fulfillment_orders for one record.",
     getFulfillmentOrderSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -333,7 +333,7 @@ export function registerFulfillmentTools(
 
   server.tool(
     "get_fulfillment",
-    "Fetch a single fulfillment (shipment) record with tracking info and parent order.",
+    "Fetch a single fulfillment (a shipment record produced by create_fulfillment) by GID. Returns its status (SUCCESS/CANCELLED/etc.), tracking entries (carrier, number, URL), the parent order, and timestamps. Use after create_fulfillment to confirm the shipment took, or when a webhook delivers a fulfillment GID and you need the details.",
     getFulfillmentSchema,
     async (args) => {
       const data = await client.graphql<{ fulfillment: FulfillmentNode | null }>(
@@ -378,9 +378,9 @@ export function registerFulfillmentTools(
     },
   );
 
-  server.tool(
+    server.tool(
     "create_fulfillment",
-    "Mark one or more fulfillment orders (or specific line-item quantities within them) as fulfilled. Optionally attach tracking info and notify the customer.",
+    "Mark items as shipped — creates a fulfillment record covering one or more fulfillment orders. For each fulfillment order in the request, you can either fulfill everything still remaining (omit `fulfillmentOrderLineItems`) or specify per-line {id, quantity} pairs for partial shipments. Optionally attach tracking info (carrier + number; URL is auto-derived for major carriers like USPS/UPS/FedEx/DHL) and set notifyCustomer=true to send the shipment-confirmation email. The fulfillmentOrderLineItem IDs come from list_fulfillment_orders. Side effects: customer-facing email if notifyCustomer is true; webhook fires; remaining quantities decrement.",
     createFulfillmentSchema,
     async (args) => {
       const fulfillment: Record<string, unknown> = {
@@ -429,7 +429,7 @@ export function registerFulfillmentTools(
 
   server.tool(
     "update_fulfillment_tracking",
-    "Update tracking info on an existing fulfillment. Any of company/number/url can be passed; omitted fields are left unchanged.",
+    "Update or add tracking info on an existing fulfillment after the fact. Use this when you've already called create_fulfillment but didn't have the carrier/tracking number yet, or when a tracking number was wrong and needs fixing. company+number is enough; Shopify auto-derives the URL for known carriers (USPS, UPS, FedEx, DHL, etc.). Set notifyCustomer=true to re-send the shipping email with the updated tracking. Omitted fields are left unchanged.",
     updateTrackingSchema,
     async (args) => {
       const trackingInfoInput: Record<string, unknown> = {};
@@ -476,7 +476,7 @@ export function registerFulfillmentTools(
 
   server.tool(
     "cancel_fulfillment",
-    "Cancel an existing fulfillment by ID.",
+    "Cancel an existing fulfillment — use when an item that was marked shipped won't actually ship (lost in warehouse, address bounced, customer cancelled). Restores remaining quantity on the underlying fulfillment order so the items can be re-fulfilled later. Does NOT issue a refund — combine with order-level refund tools if money needs to come back to the customer. Returns the new fulfillment status (typically CANCELLED).",
     cancelFulfillmentSchema,
     async (args) => {
       const data = await client.graphql<{

@@ -265,7 +265,7 @@ export function registerVariantTools(
 ): void {
   server.tool(
     "list_variants",
-    "List all variants of a product, including selected options, price, SKU, and current inventory.",
+    "List all variants of a single product, plus the product's option definitions (Size, Color, etc.) and possible values. For each variant returns: title, GID, price, compareAtPrice, SKU, barcode, current inventory quantity, taxable flag, inventory policy, and the option-value combination that produced it. Use to inspect a product's full SKU matrix before calling create_variants/update_variants/delete_variants.",
     listVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -318,7 +318,7 @@ export function registerVariantTools(
 
   server.tool(
     "create_variants",
-    "Create one or more variants on a product. Each variant's optionValues must cover all the product's options. For the first real variant on a new product (which starts with a hidden 'Default Title' variant), pass strategy='REMOVE_STANDALONE_VARIANT' to replace it.",
+    "Create one or more variants on an existing product. Each variant's optionValues must cover EVERY option declared on the product (Size + Color + Material if there are 3 options) — partial coverage is rejected. New products from create_product start with a single hidden 'Default Title' variant; when adding the first real variants, pass strategy='REMOVE_STANDALONE_VARIANT' so Shopify replaces the placeholder rather than leaving it. inventoryQuantities seeds initial stock per location at create time; for ongoing changes use set_inventory_quantity instead.",
     createVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -352,7 +352,7 @@ export function registerVariantTools(
 
   server.tool(
     "update_variants",
-    "Update one or more existing variants' price, compareAtPrice, SKU, barcode, taxable, inventoryPolicy, or optionValues. Inventory quantities use set_inventory_quantity, not this tool.",
+    "Update one or more existing variants in a single call. Editable fields: price, compareAtPrice (set to null to clear), SKU, barcode, taxable, inventoryPolicy (DENY blocks oversells, CONTINUE allows backorders), and optionValues (e.g. rename a size). Per-variant only; only the fields you provide are written. For inventory quantity changes use set_inventory_quantity — this tool deliberately doesn't accept quantities to keep that audit trail in one place.",
     updateVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -388,7 +388,7 @@ export function registerVariantTools(
 
   server.tool(
     "delete_variants",
-    "Delete one or more variants from a product. Cannot delete the last remaining variant — delete the whole product instead.",
+    "Permanently delete one or more variants from a product. Irreversible. Each product must keep at least one variant — Shopify rejects requests that would empty the product (delete the whole product via update_product status:ARCHIVED, or use the admin UI for full deletion). Variants in completed orders are kept-but-hidden by Shopify automatically; the historical record on the order is preserved.",
     deleteVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -417,7 +417,7 @@ export function registerVariantTools(
 
   server.tool(
     "reorder_variants",
-    "Set the position of variants within a product. Positions are 1-indexed and must be unique.",
+    "Set the display order of variants on a product. Positions are 1-indexed and must be unique across all variants in the product (you can't have two variants both at position 2). Affects the order variants appear on the product page and in Shopify admin. Only provide the variants whose positions are changing — others stay where they are.",
     reorderVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -445,7 +445,7 @@ export function registerVariantTools(
 
   server.tool(
     "add_product_options",
-    "Add one or more options (like Size, Color) to a product, along with their possible values. Shopify allows up to 3 options per product.",
+    "Add new options (like Size, Color, Material) to an existing product, along with their initial possible values. Shopify caps products at 3 options total — passing more is rejected. Adding an option creates new option-values that existing variants must be assigned to (Shopify auto-assigns the first value if not specified). After adding, use create_variants to add SKUs across the new option-value combinations. Cannot remove options via this tool — that requires re-creating the product.",
     addOptionSchema,
     async (args) => {
       const options = args.options.map((o) => ({

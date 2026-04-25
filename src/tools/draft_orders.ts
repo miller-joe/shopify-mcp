@@ -159,51 +159,111 @@ const lineItemSchema = z
   );
 
 const listDraftOrdersSchema = {
-  first: z.number().int().min(1).max(100).default(20),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20)
+    .describe("Page size (1-100)."),
   query: z
     .string()
     .optional()
-    .describe("Shopify draft order query, e.g. 'status:OPEN', 'customer_id:123'."),
-  after: z.string().optional(),
+    .describe(
+      "Shopify draft order query syntax. Examples: 'status:OPEN' (not yet completed), 'status:COMPLETED', 'customer_id:1234567890', 'tag:wholesale', 'updated_at:>=2026-01-01'.",
+    ),
+  after: z
+    .string()
+    .optional()
+    .describe("Cursor from the previous page's pageInfo. Omit on the first call."),
 };
 
 const getDraftOrderSchema = {
-  id: z.string().describe("Draft order GID, e.g. gid://shopify/DraftOrder/12345"),
+  id: z
+    .string()
+    .describe(
+      "Draft order GID, e.g. 'gid://shopify/DraftOrder/12345'. Get one from list_draft_orders.",
+    ),
 };
 
 const createDraftOrderSchema = {
   lineItems: z
     .array(lineItemSchema)
     .min(1)
-    .describe("At least one line item (variant reference or custom item)."),
-  customerId: z.string().optional().describe("GID of an existing customer."),
-  email: z.string().email().optional(),
-  note: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  useCustomerDefaultAddress: z.boolean().optional(),
+    .describe(
+      "At least one line item. Each item is EITHER a variant reference (just variantId + quantity) OR a custom item (title + originalUnitPrice + quantity, no variantId). Mixing both shapes in one item is rejected by the refine() validator.",
+    ),
+  customerId: z
+    .string()
+    .optional()
+    .describe(
+      "GID of an existing customer to attach to the draft. Get one from list_customers. Optional — drafts can be customer-less and converted to a guest checkout.",
+    ),
+  email: z
+    .string()
+    .email()
+    .optional()
+    .describe(
+      "Email address for the order. Useful when you don't have a customer record yet but want to email the invoice URL.",
+    ),
+  note: z
+    .string()
+    .optional()
+    .describe("Internal note visible to staff only (not the customer)."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Tags to apply to the draft for filtering/segmentation."),
+  useCustomerDefaultAddress: z
+    .boolean()
+    .optional()
+    .describe(
+      "If true and customerId is set, copy the customer's default shipping address onto the draft.",
+    ),
 };
 
 const updateDraftOrderSchema = {
-  id: z.string().describe("Draft order GID to update."),
-  lineItems: z.array(lineItemSchema).optional(),
-  customerId: z.string().optional(),
-  email: z.string().email().optional(),
-  note: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  id: z
+    .string()
+    .describe(
+      "GID of the draft order to update. Cannot update completed drafts (those are real orders — use the order tools).",
+    ),
+  lineItems: z
+    .array(lineItemSchema)
+    .optional()
+    .describe(
+      "If provided, REPLACES the entire current line-items array — this is a replace, not a merge. To add or remove specific items you must read the current items first and resubmit the full set.",
+    ),
+  customerId: z
+    .string()
+    .optional()
+    .describe("New customer GID to attach. Pass to swap or set the customer."),
+  email: z.string().email().optional().describe("New email for the order."),
+  note: z.string().optional().describe("New internal note. Replaces any prior note."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("New tag set. Replaces existing tags entirely."),
 };
 
 const completeDraftOrderSchema = {
-  id: z.string().describe("Draft order GID to complete."),
+  id: z
+    .string()
+    .describe("GID of an OPEN draft order. Already-completed drafts are rejected."),
   paymentPending: z
     .boolean()
     .optional()
     .describe(
-      "If true, complete without capturing payment (mark as pending). Default false.",
+      "If true, the resulting order is marked payment-pending — Shopify creates the order but does NOT capture payment. Use when you'll collect payment offline (cash, bank transfer, manual card auth) or via a separate flow. Default false (attempts to capture immediately).",
     ),
 };
 
 const deleteDraftOrderSchema = {
-  id: z.string().describe("Draft order GID to delete."),
+  id: z
+    .string()
+    .describe(
+      "GID of a draft order to delete. Permanent. Cannot delete drafts that have been completed (those are real orders — orders cannot be deleted, only cancelled or archived).",
+    ),
 };
 
 function mapLineItemsForInput(
@@ -235,7 +295,7 @@ export function registerDraftOrderTools(
 ): void {
   server.tool(
     "list_draft_orders",
-    "List draft orders (most recently updated first). Supports Shopify draft order query filtering.",
+    "List draft orders (carts/quotes that haven't yet been completed into real orders), most recently updated first. Returns each draft's name (e.g. 'D1023'), status (OPEN/COMPLETED/INVOICE_SENT), total price, customer name, and whether it's already been converted to an order. Supports Shopify's draft-order query syntax for filtering by status, customer, tag, or update time. Cursor-paginated.",
     listDraftOrdersSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -262,7 +322,7 @@ export function registerDraftOrderTools(
 
   server.tool(
     "get_draft_order",
-    "Fetch a single draft order with line items.",
+    "Fetch a single draft order with full details: status, customer, line items (with quantity, title, and unit price), invoice URL, and the resulting real order if it's already been completed. Use to inspect a draft before calling update_draft_order or complete_draft_order. Returns a friendly text summary.",
     getDraftOrderSchema,
     async (args) => {
       const data = await client.graphql<{ draftOrder: DraftOrder | null }>(
@@ -310,9 +370,9 @@ export function registerDraftOrderTools(
     },
   );
 
-  server.tool(
+    server.tool(
     "create_draft_order",
-    "Create a new draft order. Each line item is either a variantId reference or a custom (title + originalUnitPrice) pair.",
+    "Create a new draft order — Shopify's term for an editable cart/quote not yet placed as an order. Each line item is EITHER a variant reference (variantId + quantity) for catalog products, OR a custom item (title + originalUnitPrice + quantity) for one-off charges or services not in the catalog. Optionally attach a customer, email, internal note, tags, and choose whether to copy the customer's default address. Returns the new draft's GID and an invoice URL the customer can use to pay. Drafts stay OPEN until you call complete_draft_order or send the invoice.",
     createDraftOrderSchema,
     async (args) => {
       const input: Record<string, unknown> = {
@@ -362,7 +422,7 @@ export function registerDraftOrderTools(
 
   server.tool(
     "update_draft_order",
-    "Update an existing draft order. Replaces line items if provided.",
+    "Modify an existing OPEN draft order's customer, email, note, tags, or line items. Important: if `lineItems` is provided, it REPLACES the existing items entirely (not a merge or append) — read the current items first if you need to preserve any. Cannot update completed drafts; those are real orders. To pause and pick up a draft later, leave it OPEN and re-invoke update later; nothing here triggers payment.",
     updateDraftOrderSchema,
     async (args) => {
       const input: Record<string, unknown> = {};
@@ -402,7 +462,7 @@ export function registerDraftOrderTools(
 
   server.tool(
     "complete_draft_order",
-    "Complete a draft order, converting it into a real order. Pass paymentPending=true to skip capture.",
+    "Convert an OPEN draft order into a real Shopify order. With paymentPending=false (default), Shopify attempts to capture payment immediately; the call fails if no payment method is on file. With paymentPending=true, the order is created in payment-pending status — useful when collecting payment offline (cash, bank transfer, manual processing). Once completed, the draft transitions to COMPLETED and the new order's GID is returned. The transition is one-way: completed drafts cannot be re-opened or edited via draft tools (use the order tools, or refund/cancel for the resulting order).",
     completeDraftOrderSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -439,7 +499,7 @@ export function registerDraftOrderTools(
 
   server.tool(
     "delete_draft_order",
-    "Delete a draft order by ID. Cannot delete completed draft orders.",
+    "Permanently delete a draft order. Only OPEN/INVOICE_SENT drafts can be deleted — completed drafts are real orders and orders cannot be deleted (cancel them instead). Irreversible. Returns the deleted GID, or a no-op message if the GID didn't match anything.",
     deleteDraftOrderSchema,
     async (args) => {
       const data = await client.graphql<{

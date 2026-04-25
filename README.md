@@ -46,11 +46,32 @@ Or point your MCP gateway at the Streamable HTTP endpoint.
 | `--shopify-store` | `SHOPIFY_STORE` | *(required)* | `my-store` or `my-store.myshopify.com` |
 | `--shopify-access-token` | `SHOPIFY_ACCESS_TOKEN` | *(required)* | Admin API token (`shpat_…`) |
 | `--shopify-api-version` | `SHOPIFY_API_VERSION` | `2026-04` | GraphQL Admin API version |
-| `--host` | `MCP_HOST` | `0.0.0.0` | Bind host |
-| `--port` | `MCP_PORT` | `9110` | Bind port |
+| `--host` | `MCP_HOST` | `0.0.0.0` | Bind host (HTTP mode only) |
+| `--port` | `MCP_PORT` | `9110` | Bind port (HTTP mode only) |
+| `--stdio` | `MCP_TRANSPORT=stdio` | (unset) | Speak MCP over stdio instead of HTTP. Use when launched as a subprocess by a stdio-first MCP client (Claude Desktop, mcp-inspector). |
 | `--comfyui-url` | `COMFYUI_URL` | *(optional)* | Enables bridge tools when set |
 | `--comfyui-public-url` | `COMFYUI_PUBLIC_URL` | same as `--comfyui-url` | External URL used for image references passed to Shopify |
 | (no flag) | `COMFYUI_DEFAULT_CKPT` | `sd_xl_base_1.0.safetensors` | Default checkpoint for bridge tools |
+
+### Transports
+
+The server speaks streamable HTTP by default (great for Claude Code, MetaMCP, raw `fetch`). Pass `--stdio` (or set `MCP_TRANSPORT=stdio`) to switch into stdio mode, which is what stdio-first clients like Claude Desktop and the MCP Inspector expect:
+
+```json
+// claude_desktop_config.json
+{
+  "mcpServers": {
+    "shopify": {
+      "command": "npx",
+      "args": ["-y", "@miller-joe/shopify-mcp", "--stdio"],
+      "env": {
+        "SHOPIFY_STORE": "my-store.myshopify.com",
+        "SHOPIFY_ACCESS_TOKEN": "shpat_…"
+      }
+    }
+  }
+}
+```
 
 ### Getting a Shopify access token
 
