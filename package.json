@@ -1,6 +1,6 @@
 {
   "name": "@miller-joe/shopify-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "mcpName": "io.github.miller-joe/shopify-mcp",
   "description": "MCP server for Shopify — Admin API tooling plus AI-driven product creation via ComfyUI image generation.",
   "license": "MIT",
@@ -16,6 +16,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "engines": {
