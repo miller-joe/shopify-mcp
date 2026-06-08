@@ -21,9 +21,12 @@ jobs:
 
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # OIDC trusted publishing requires npm >= 11.5.1 (node 20 ships npm 10.x).
+      - run: npm install -g npm@latest
+
+      # Publishes via GitHub OIDC trusted publishing (configured on the npm
+      # package): no NPM_TOKEN, and provenance is generated automatically.
+      - run: npm publish --access public
 
   publish-docker:
     runs-on: ubuntu-latest
