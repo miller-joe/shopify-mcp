@@ -93,7 +93,7 @@ export function registerAnalyticsTools(
 ): void {
   server.tool(
     "run_shopifyql_query",
-    "Run a ShopifyQL query against the store and return the result as a rendered ASCII table. ShopifyQL is Shopify's SQL-like analytics language. Examples: 'FROM sales SHOW total_sales BY day SINCE -30d TIMESERIES', 'FROM products SHOW product_title, quantity_sold BY product_id SINCE -7d ORDER BY quantity_sold DESC LIMIT 10'.",
+    "Run a ShopifyQL analytics query against the store. ShopifyQL is Shopify's SQL-like analytics language. Read-only, no side effects (requires read_reports / analytics access on the token; Shopify Plus or analytics-eligible plans only). By default returns a rendered ASCII table (a row count plus headers, column data types, and rows); pass raw=true to get the unformatted JSON payload instead. Parse errors come back as a readable error list rather than throwing. Examples: 'FROM sales SHOW total_sales BY day SINCE -30d TIMESERIES', 'FROM products SHOW product_title, quantity_sold BY product_id SINCE -7d ORDER BY quantity_sold DESC LIMIT 10'.",
     runShopifyqlSchema,
     async (args) => {
       const data = await client.graphql<{

@@ -138,7 +138,12 @@ const lineItemSchema = z
       .string()
       .optional()
       .describe("GID of a product variant. Omit for custom items."),
-    quantity: z.number().int().min(1).default(1),
+    quantity: z
+      .number()
+      .int()
+      .min(1)
+      .default(1)
+      .describe("Units of this line item (positive integer). Default 1."),
     title: z
       .string()
       .optional()

@@ -122,14 +122,23 @@ const WEBHOOK_DELETE_MUTATION = /* GraphQL */ `
 `;
 
 const listWebhooksSchema = {
-  first: z.number().int().min(1).max(100).default(20),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20)
+    .describe("Page size — max subscriptions to return (1-100). Default 20."),
   topics: z
     .array(z.string())
     .optional()
     .describe(
-      "Filter by WebhookSubscriptionTopic values, e.g. ['ORDERS_CREATE', 'PRODUCTS_UPDATE']. Use uppercase underscore form.",
+      "Filter by WebhookSubscriptionTopic values, e.g. ['ORDERS_CREATE', 'PRODUCTS_UPDATE']. Use uppercase underscore form. Omit to list all.",
     ),
-  after: z.string().optional(),
+  after: z
+    .string()
+    .optional()
+    .describe("Pagination cursor from a prior page's pageInfo. Omit on the first call."),
 };
 
 const getWebhookSchema = {
@@ -145,8 +154,11 @@ const createWebhookSchema = {
   callbackUrl: z
     .string()
     .url()
-    .describe("HTTPS endpoint that will receive the webhook POSTs."),
-  format: z.enum(["JSON", "XML"]).default("JSON"),
+    .describe("HTTPS endpoint that will receive the webhook POSTs. Must be HTTPS in production."),
+  format: z
+    .enum(["JSON", "XML"])
+    .default("JSON")
+    .describe("Payload serialization format for deliveries. Default JSON."),
   includeFields: z
     .array(z.string())
     .optional()
@@ -162,11 +174,17 @@ const createWebhookSchema = {
 };
 
 const updateWebhookSchema = {
-  id: z.string().describe("Webhook subscription GID to update."),
-  callbackUrl: z.string().url().optional(),
-  format: z.enum(["JSON", "XML"]).optional(),
-  includeFields: z.array(z.string()).optional(),
-  metafieldNamespaces: z.array(z.string()).optional(),
+  id: z.string().describe("Webhook subscription GID to update. Topic cannot be changed (delete + recreate to switch topics)."),
+  callbackUrl: z.string().url().optional().describe("New HTTPS delivery endpoint. Omit to leave unchanged."),
+  format: z.enum(["JSON", "XML"]).optional().describe("New payload format (JSON or XML). Omit to leave unchanged."),
+  includeFields: z
+    .array(z.string())
+    .optional()
+    .describe("New field allow-list to trim the payload to only these fields. Omit to leave unchanged."),
+  metafieldNamespaces: z
+    .array(z.string())
+    .optional()
+    .describe("New list of metafield namespaces to include in the payload. Omit to leave unchanged."),
 };
 
 const deleteWebhookSchema = {

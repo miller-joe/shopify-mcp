@@ -174,8 +174,8 @@ const lineItemByFulfillmentOrderSchema = z.object({
   fulfillmentOrderLineItems: z
     .array(
       z.object({
-        id: z.string().describe("FulfillmentOrderLineItem GID."),
-        quantity: z.number().int().min(1),
+        id: z.string().describe("FulfillmentOrderLineItem GID (from list_fulfillment_orders)."),
+        quantity: z.number().int().min(1).describe("Units of this line item to ship now (positive integer; up to the remaining quantity)."),
       }),
     )
     .optional()
@@ -222,11 +222,11 @@ const createFulfillmentSchema = {
 };
 
 const updateTrackingSchema = {
-  fulfillmentId: z.string().describe("Fulfillment GID to update tracking on."),
-  company: z.string().optional(),
-  number: z.string().optional(),
-  url: z.string().url().optional(),
-  notifyCustomer: z.boolean().optional(),
+  fulfillmentId: z.string().describe("Fulfillment GID to update tracking on (from create_fulfillment or get_fulfillment)."),
+  company: z.string().optional().describe("New carrier name, e.g. 'USPS', 'UPS', 'FedEx', 'DHL'. Omit to leave unchanged."),
+  number: z.string().optional().describe("New tracking number. Omit to leave unchanged."),
+  url: z.string().url().optional().describe("New tracking URL. Auto-derived for known carriers if omitted; pass to override."),
+  notifyCustomer: z.boolean().optional().describe("If true, re-send the shipping email with the updated tracking. Default false."),
 };
 
 const cancelFulfillmentSchema = {

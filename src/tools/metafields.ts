@@ -101,7 +101,13 @@ const listMetafieldsSchema = {
     .string()
     .optional()
     .describe("Filter to a single namespace. Omit to return all."),
-  first: z.number().int().min(1).max(100).default(50),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(50)
+    .describe("Page size — max metafields to return (1-100). Default 50."),
 };
 
 const deleteMetafieldSchema = {

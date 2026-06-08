@@ -143,7 +143,12 @@ const orderLineItemSchema = z
       .string()
       .optional()
       .describe("Product variant GID. Omit for custom (non-catalog) line items."),
-    quantity: z.number().int().min(1).default(1),
+    quantity: z
+      .number()
+      .int()
+      .min(1)
+      .default(1)
+      .describe("Units of this line item to add (positive integer). Default 1."),
     title: z
       .string()
       .optional()
@@ -153,8 +158,8 @@ const orderLineItemSchema = z
     priceSet: z
       .object({
         shopMoney: z.object({
-          amount: z.string(),
-          currencyCode: z.string().describe("ISO currency code (USD, EUR, GBP, ...)"),
+          amount: z.string().describe("Per-unit price as a decimal string in shop currency, e.g. '19.99'."),
+          currencyCode: z.string().describe("ISO 4217 currency code (USD, EUR, GBP, ...)."),
         }),
       })
       .optional()
@@ -235,10 +240,15 @@ const updateOrderSchema = {
     .optional()
     .describe("New internal staff note. Replaces any prior note."),
   customAttributes: z
-    .array(z.object({ key: z.string(), value: z.string() }))
+    .array(
+      z.object({
+        key: z.string().describe("Attribute name/key (e.g. 'gift_message')."),
+        value: z.string().describe("Attribute value as a string."),
+      }),
+    )
     .optional()
     .describe(
-      "Custom attributes (cart attributes / order notes). Replaces the entire set if provided.",
+      "Custom attributes (cart attributes / order notes) as key/value pairs. REPLACES the entire set if provided.",
     ),
 };
 
@@ -300,8 +310,11 @@ const refundOrderSchema = {
     ),
   shipping: z
     .object({
-      fullRefund: z.boolean().optional(),
-      amount: z.string().optional().describe("Specific shipping refund amount as decimal string."),
+      fullRefund: z
+        .boolean()
+        .optional()
+        .describe("If true, refund the entire amount the customer paid for shipping. Use instead of `amount`."),
+      amount: z.string().optional().describe("Specific shipping refund amount as a decimal string, e.g. '5.00'. Ignored if fullRefund is true."),
     })
     .optional()
     .describe(

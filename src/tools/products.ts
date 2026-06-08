@@ -110,49 +110,104 @@ const CREATE_MEDIA_MUTATION = /* GraphQL */ `
 `;
 
 const listProductsSchema = {
-  first: z.number().int().min(1).max(100).default(20),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(20)
+    .describe("Page size — number of products to return (1-100). Default 20."),
   query: z
     .string()
     .optional()
     .describe(
-      "Shopify query syntax, e.g. 'status:active', 'title:*shirt*', 'vendor:MyVendor'",
+      "Shopify product query syntax, e.g. 'status:active', 'title:*shirt*', 'vendor:MyVendor', 'product_type:Art', 'tag:sale', 'created_at:>=2026-01-01'. Combine terms with AND/OR/NOT. Omit to list all products.",
     ),
-  after: z.string().optional().describe("Cursor from a previous page"),
+  after: z
+    .string()
+    .optional()
+    .describe(
+      "Opaque pagination cursor from a prior call's 'next cursor:' line. Omit on the first call.",
+    ),
 };
 
 const getProductSchema = {
   id: z
     .string()
-    .describe("Product GID (gid://shopify/Product/123...) or numeric ID"),
+    .describe(
+      "Product identifier — Shopify GID ('gid://shopify/Product/123') or a bare numeric ID (auto-promoted to a GID). Get one from list_products.",
+    ),
 };
 
 const createProductSchema = {
-  title: z.string().min(1),
-  description: z.string().optional().describe("Description as HTML"),
-  vendor: z.string().optional(),
-  product_type: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).default("DRAFT"),
+  title: z.string().min(1).describe("Product title shown to shoppers. Required, non-empty."),
+  description: z
+    .string()
+    .optional()
+    .describe("Product body/description as HTML (maps to descriptionHtml). Plain text is fine; tags render."),
+  vendor: z.string().optional().describe("Vendor/brand name (free text). Optional."),
+  product_type: z
+    .string()
+    .optional()
+    .describe("Merchant-defined product category/type, e.g. 'Art' or 'T-Shirt' (free text). Optional."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("Tag strings for filtering, smart-collection rules, and search. Optional."),
+  status: z
+    .enum(["ACTIVE", "DRAFT", "ARCHIVED"])
+    .default("DRAFT")
+    .describe(
+      "Storefront visibility. ACTIVE = live/purchasable, DRAFT = hidden work-in-progress, ARCHIVED = retired but order history kept. Defaults to DRAFT to avoid accidentally publishing.",
+    ),
   image_urls: z
     .array(z.string().url())
     .optional()
-    .describe("Image URLs to attach after creation"),
+    .describe(
+      "Publicly fetchable image URLs to attach after the product is created. Shopify pulls each URL server-side and rehosts it on its CDN. Optional.",
+    ),
 };
 
 const updateProductSchema = {
-  id: z.string().describe("Product GID or numeric ID"),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  vendor: z.string().optional(),
-  product_type: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  status: z.enum(["ACTIVE", "DRAFT", "ARCHIVED"]).optional(),
+  id: z
+    .string()
+    .describe("Product GID ('gid://shopify/Product/123') or numeric ID to update."),
+  title: z.string().optional().describe("New product title. Omit to leave unchanged."),
+  description: z
+    .string()
+    .optional()
+    .describe("New HTML description (descriptionHtml). Omit to leave unchanged; pass empty string to clear."),
+  vendor: z.string().optional().describe("New vendor/brand name. Omit to leave unchanged."),
+  product_type: z
+    .string()
+    .optional()
+    .describe("New product type/category. Omit to leave unchanged."),
+  tags: z
+    .array(z.string())
+    .optional()
+    .describe("New tag set. REPLACES the existing tags entirely (not additive). Use add_tags/remove_tags for incremental changes."),
+  status: z
+    .enum(["ACTIVE", "DRAFT", "ARCHIVED"])
+    .optional()
+    .describe(
+      "New status. ACTIVE = live, DRAFT = hidden, ARCHIVED = hidden but order history preserved. Omit to leave unchanged.",
+    ),
 };
 
 const uploadProductImageSchema = {
-  product_id: z.string().describe("Product GID or numeric ID"),
-  image_url: z.string().url().describe("Public image URL to attach"),
-  alt_text: z.string().optional(),
+  product_id: z
+    .string()
+    .describe("Product GID ('gid://shopify/Product/123') or numeric ID to attach the image to."),
+  image_url: z
+    .string()
+    .url()
+    .describe(
+      "Public image URL. Must be reachable from Shopify's network — Shopify fetches it server-side and rehosts on its CDN.",
+    ),
+  alt_text: z
+    .string()
+    .optional()
+    .describe("Alt text for accessibility/SEO. Optional."),
 };
 
 export function registerProductTools(
@@ -161,7 +216,7 @@ export function registerProductTools(
 ): void {
   server.tool(
     "list_products",
-    "List products in the store with cursor-based pagination. Returns each product's title, status (ACTIVE/DRAFT/ARCHIVED), GID, and total inventory across all variants/locations. Supports Shopify's product query syntax for filtering by status, vendor, type, tag, title (wildcard), and date ranges. The last line of output shows the next cursor when more pages exist — pass it as `after` on the next call. Use this to find product GIDs before calling get_product, update_product, list_variants, or any product-scoped tool.",
+    "List products in the store with cursor-based pagination via the Shopify Admin GraphQL API. Read-only, no side effects (requires read_products scope). Returns a text summary, one line per product: title, status (ACTIVE/DRAFT/ARCHIVED), GID, and total inventory across all variants/locations; the last line is either 'next cursor: ...' (pass as `after` to page) or '(end of results)'. Supports Shopify's product query syntax for filtering by status, vendor, type, tag, title (wildcard), and date ranges. Use this to find product GIDs before calling get_product, update_product, list_variants, or any product-scoped tool.",
     listProductsSchema,
     async (args) => {
       const data = await client.graphql<{ products: Connection<Product> }>(
@@ -187,7 +242,7 @@ export function registerProductTools(
 
   server.tool(
     "get_product",
-    "Fetch a single product's full record by GID or numeric ID. Returns header fields (title, handle, status, vendor, productType, description, tags), inventory totals, the first 10 images and 10 media items, and the first 20 variants with their prices, SKUs, inventory quantities, and inventoryItem GIDs. Returned as JSON for downstream tooling. The variant inventoryItem GIDs are needed by set_inventory_quantity. For more than 20 variants, follow up with list_variants.",
+    "Fetch a single product's full record by GID or numeric ID. Read-only, no side effects (requires read_products scope). Returns pretty-printed JSON: header fields (title, handle, status, vendor, productType, description, tags), inventory totals, the first 10 images and 10 media items, and the first 20 variants with their prices, SKUs, inventory quantities, and inventoryItem GIDs (those inventoryItem GIDs are required by set_inventory_quantity). Returns 'Product not found: <id>' if the GID doesn't resolve. Use list_products to discover IDs first; for more than 20 variants follow up with list_variants.",
     getProductSchema,
     async (args) => {
       const data = await client.graphql<{ product: ProductDetail | null }>(
@@ -212,7 +267,7 @@ export function registerProductTools(
 
   server.tool(
     "create_product",
-    "Create a new product. The product is created first, then any image_urls (publicly fetchable) are attached as a follow-up call — Shopify pulls each URL and hosts the image on its CDN. The default `status` is DRAFT to prevent accidentally publishing half-configured products to the storefront; pass status=ACTIVE only when you're ready to go live. New products start with a single hidden 'Default Title' variant; to add real variants with options, call create_variants with strategy='REMOVE_STANDALONE_VARIANT'. Returns the new product's GID and handle.",
+    "Create a new product via the Shopify Admin API. Side effect: writes live store data (requires write_products scope); not reversible via this tool — use update_product to set status=ARCHIVED to retire it. The product is created first, then any image_urls (publicly fetchable) are attached as a follow-up call — Shopify pulls each URL and rehosts on its CDN. Defaults to status=DRAFT to prevent accidentally publishing half-configured products; pass status=ACTIVE only when ready to go live. New products start with a single hidden 'Default Title' variant; to add real variants with options, call create_variants with strategy='REMOVE_STANDALONE_VARIANT'. Returns a text summary with the new product's GID and handle. Use update_product to edit an existing product instead.",
     createProductSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -253,7 +308,7 @@ export function registerProductTools(
 
   server.tool(
     "update_product",
-    "Update an existing product's core fields — title, description (HTML), vendor, productType, tags, or status. Only provide fields you want changed; omitted fields are left untouched. Setting status=ARCHIVED hides the product from the storefront but preserves order history. To change variants, prices, or inventory use create_variants/update_variants and set_inventory_quantity. To change images use upload_product_image (or one of the bridge tools to generate new ones).",
+    "Update an existing product's core fields — title, description (HTML), vendor, productType, tags, or status — via the Shopify Admin API. Side effect: mutates live store data immediately (requires write_products scope); not reversible via this tool. Only provide fields you want changed; omitted fields are left untouched. Note `tags` is a full replacement, not additive. Setting status=ARCHIVED hides the product from the storefront but preserves order history. Returns a text confirmation with the product's title and GID. Use create_product to add a new product, get_product to read without modifying; for variants/prices/inventory use create_variants/update_variants and set_inventory_quantity; for images use upload_product_image or the bridge tools.",
     updateProductSchema,
     async (args) => {
       const input: Record<string, unknown> = { id: toGid(args.id, "Product") };
@@ -288,7 +343,7 @@ export function registerProductTools(
 
   server.tool(
     "upload_product_image",
-    "Attach an image to an existing product by URL. Shopify fetches the URL server-side and hosts the file on its CDN — the URL must be publicly reachable from Shopify's network. Multiple calls add multiple images; this tool does not replace existing images. Use the bridge tools (generate_product_image, refine_product_image) instead when you want the image generated by ComfyUI rather than provided as a URL.",
+    "Attach an image to an existing product by URL via the Shopify Admin API. Side effect: adds media to live store data (requires write_products scope); Shopify fetches the URL server-side and rehosts on its CDN, so the URL must be publicly reachable from Shopify's network. Additive — multiple calls add multiple images; this tool never replaces or deletes existing images. Returns a text confirmation with the new media GID(s). Use the bridge tools (generate_product_image, refine_product_image) instead when you want the image generated by ComfyUI rather than provided as a URL.",
     uploadProductImageSchema,
     async (args) => {
       const productId = toGid(args.product_id, "Product");

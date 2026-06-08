@@ -79,16 +79,16 @@ const listCustomersSchema = {
 };
 
 const addressInputSchema = z.object({
-  address1: z.string().optional(),
-  address2: z.string().optional(),
-  city: z.string().optional(),
-  province: z.string().optional().describe("State/province name or code (e.g. 'CA' or 'California')."),
-  country: z.string().optional().describe("Country name or 2-letter code (e.g. 'US', 'United States')."),
-  zip: z.string().optional(),
-  phone: z.string().optional(),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  company: z.string().optional(),
+  address1: z.string().optional().describe("Street address line 1 (e.g. '123 Main St'). Optional."),
+  address2: z.string().optional().describe("Street address line 2 (apartment, suite, unit). Optional."),
+  city: z.string().optional().describe("City / locality. Optional."),
+  province: z.string().optional().describe("State/province name or code (e.g. 'CA' or 'California'). Optional."),
+  country: z.string().optional().describe("Country name or 2-letter ISO code (e.g. 'US', 'United States'). Optional."),
+  zip: z.string().optional().describe("Postal / ZIP code. Optional."),
+  phone: z.string().optional().describe("Contact phone for this address, ideally E.164 (e.g. '+15551234567'). Optional."),
+  firstName: z.string().optional().describe("Recipient first name for this address. Optional."),
+  lastName: z.string().optional().describe("Recipient last name for this address. Optional."),
+  company: z.string().optional().describe("Company name for this address. Optional."),
 });
 
 const createCustomerSchema = {
@@ -99,8 +99,8 @@ const createCustomerSchema = {
     .describe(
       "Customer email. At minimum email or phone is required for the customer to be useful. Must be unique across the store.",
     ),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
+  firstName: z.string().optional().describe("Customer first name. Optional."),
+  lastName: z.string().optional().describe("Customer last name. Optional."),
   phone: z
     .string()
     .optional()
@@ -122,8 +122,17 @@ const createCustomerSchema = {
     ),
   emailMarketingConsent: z
     .object({
-      marketingState: z.enum(["NOT_SUBSCRIBED", "PENDING", "SUBSCRIBED", "UNSUBSCRIBED", "REDACTED", "INVALID"]),
-      marketingOptInLevel: z.enum(["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"]).optional(),
+      marketingState: z
+        .enum(["NOT_SUBSCRIBED", "PENDING", "SUBSCRIBED", "UNSUBSCRIBED", "REDACTED", "INVALID"])
+        .describe(
+          "Email marketing subscription state. SUBSCRIBED = opted in (requires documented consent), NOT_SUBSCRIBED = safe default, PENDING/UNSUBSCRIBED/REDACTED/INVALID per Shopify semantics.",
+        ),
+      marketingOptInLevel: z
+        .enum(["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"])
+        .optional()
+        .describe(
+          "Opt-in mechanism that produced the consent: SINGLE_OPT_IN (signed up directly), CONFIRMED_OPT_IN (double opt-in/email-confirmed), or UNKNOWN. Optional.",
+        ),
     })
     .optional()
     .describe(
@@ -135,10 +144,10 @@ const updateCustomerSchema = {
   id: z
     .string()
     .describe("Customer GID or numeric ID. Get one from list_customers."),
-  email: z.string().email().optional().describe("New email. Must remain unique."),
-  firstName: z.string().optional(),
-  lastName: z.string().optional(),
-  phone: z.string().optional().describe("New phone in E.164 format."),
+  email: z.string().email().optional().describe("New email. Must remain unique across the store. Omit to leave unchanged."),
+  firstName: z.string().optional().describe("New first name. Omit to leave unchanged."),
+  lastName: z.string().optional().describe("New last name. Omit to leave unchanged."),
+  phone: z.string().optional().describe("New phone in E.164 format (e.g. '+15551234567'). Must remain unique. Omit to leave unchanged."),
   tags: z
     .array(z.string())
     .optional()
@@ -154,7 +163,7 @@ export function registerCustomerTools(
 ): void {
   server.tool(
     "list_customers",
-    "List customers in the store, newest first by creation date. Returns each customer's display name, email, lifetime order count, and total amount spent (in shop currency). Supports Shopify's customer query syntax for filtering by email, tag, order count, spend, marketing-consent, account state, and more. Cursor-paginated; pass `after` to advance pages. Use this to find customer GIDs before referencing them in draft orders or to segment for marketing.",
+    "List customers in the store, newest first by creation date. Read-only, no side effects (requires read_customers scope — note this is PII). Returns a text summary, one line per customer: display name, email, lifetime order count, total amount spent (in shop currency), and GID. Supports Shopify's customer query syntax for filtering by email, tag, order count, spend, marketing-consent, account state, and more. Cursor-paginated; pass `after` to advance pages. Use this to find customer GIDs before referencing them in create_order/create_draft_order, or to segment for marketing.",
     listCustomersSchema,
     async (args) => {
       const data = await client.graphql<{ customers: Connection<Customer> }>(
@@ -179,7 +188,7 @@ export function registerCustomerTools(
 
   server.tool(
     "create_customer",
-    "Create a new customer record. At minimum, supply email or phone (one is required for the customer to be reachable; both is fine). Email and phone must each be unique across the store — duplicates trigger validation errors. Optionally seed addresses (the first becomes the default shipping address), apply tags for segmentation, and set email-marketing consent. Default consent is NOT_SUBSCRIBED — only set SUBSCRIBED when you have documented opt-in (legal requirement in many jurisdictions). Returns the new customer's GID for use as customerId in create_order, create_draft_order, etc.",
+    "Create a new customer record via the Shopify Admin API. Side effect: writes a new PII record to live store data (requires write_customers scope); not reversible via this tool. At minimum supply email or phone; each must be unique across the store or Shopify returns a validation error. Optionally seed addresses (the first becomes the default shipping address), apply tags, and set email-marketing consent — only set SUBSCRIBED with documented opt-in (legally required in many jurisdictions). Returns a text confirmation with the new customer's display name, email, and GID (usable as customerId in create_order/create_draft_order). Use update_customer to edit an existing customer instead.",
     createCustomerSchema,
     async (args) => {
       const input: Record<string, unknown> = {};
@@ -222,7 +231,7 @@ export function registerCustomerTools(
 
   server.tool(
     "update_customer",
-    "Update an existing customer's profile fields — email, name, phone, tags, internal note. Only provide fields you want changed; omitted fields stay as-is. Tags is a full replacement (use add_tags / remove_tags for additive/subtractive changes). Email and phone changes still need to satisfy the per-store uniqueness constraint. To change addresses, use Shopify's address-specific mutations (not yet exposed by this server). To change marketing consent, the dedicated customerEmailMarketingConsentUpdate mutation is preferred.",
+    "Update an existing customer's profile fields — email, name, phone, tags, internal note — via the Shopify Admin API. Side effect: mutates live PII data immediately (requires write_customers scope); not reversible via this tool. Only provide fields you want changed; omitted fields stay as-is. `tags` is a full replacement (use add_tags/remove_tags for additive/subtractive changes). Email and phone changes must still satisfy per-store uniqueness. Returns a text confirmation with the customer's display name, email, and GID. Addresses and marketing consent are not editable here (use Shopify's address-specific / customerEmailMarketingConsentUpdate mutations). Use create_customer to add a new customer instead.",
     updateCustomerSchema,
     async (args) => {
       const input: Record<string, unknown> = { id: toGid(args.id, "Customer") };

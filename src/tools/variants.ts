@@ -146,90 +146,122 @@ const optionValueInputSchema = z.object({
 });
 
 const inventoryQuantityInputSchema = z.object({
-  locationId: z.string().describe("Location GID."),
+  locationId: z.string().describe("Location GID ('gid://shopify/Location/123') where this stock lives. Get one from list_locations."),
   name: z
     .enum(["available", "on_hand"])
     .default("available")
-    .describe("Quantity name. 'available' is what customers can buy."),
-  quantity: z.number().int().min(0),
+    .describe("Which quantity field to set: 'available' (what customers can buy) or 'on_hand' (physically present). Default 'available'."),
+  quantity: z.number().int().min(0).describe("Initial absolute stock count at this location (non-negative integer)."),
 });
 
 const variantCreateSchema = z.object({
   optionValues: z
     .array(optionValueInputSchema)
     .describe(
-      "One entry per product option. Shape must match the product's options (order-insensitive, matched by optionName).",
+      "One entry per product option. Must cover EVERY option declared on the product (order-insensitive, matched by optionName).",
     ),
-  price: z.string().describe("Variant price as decimal string, e.g. '19.99'."),
-  compareAtPrice: z.string().optional(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
-  taxable: z.boolean().optional(),
+  price: z.string().describe("Variant price as a decimal string, e.g. '19.99'."),
+  compareAtPrice: z
+    .string()
+    .optional()
+    .describe("'Compare at' / was-price as a decimal string, e.g. '29.99', for strike-through pricing. Optional."),
+  sku: z.string().optional().describe("Stock keeping unit identifier. Optional."),
+  barcode: z.string().optional().describe("Barcode (ISBN, UPC, GTIN, etc.). Optional."),
+  taxable: z.boolean().optional().describe("Whether tax is charged on this variant. Defaults to Shopify's default (true) when omitted."),
   inventoryPolicy: z
     .enum(["DENY", "CONTINUE"])
     .optional()
     .describe(
-      "Oversell policy: DENY blocks sales at 0 stock, CONTINUE allows backorder.",
+      "Oversell policy when stock hits 0: DENY blocks further sales, CONTINUE allows backorders. Optional.",
     ),
   inventoryQuantities: z
     .array(inventoryQuantityInputSchema)
     .optional()
     .describe(
-      "Initial stock per location. Only accepted on create — use set_inventory_quantity for subsequent updates.",
+      "Initial stock per location. Only accepted at create time — use set_inventory_quantity for subsequent changes. Optional.",
     ),
 });
 
 const variantUpdateSchema = z.object({
-  id: z.string().describe("Variant GID to update."),
-  price: z.string().optional(),
-  compareAtPrice: z.string().optional().nullable(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
-  taxable: z.boolean().optional(),
-  inventoryPolicy: z.enum(["DENY", "CONTINUE"]).optional(),
-  optionValues: z.array(optionValueInputSchema).optional(),
+  id: z.string().describe("Variant GID to update ('gid://shopify/ProductVariant/123'). Required."),
+  price: z.string().optional().describe("New price as a decimal string, e.g. '19.99'. Omit to leave unchanged."),
+  compareAtPrice: z
+    .string()
+    .optional()
+    .nullable()
+    .describe("New 'compare at' price as a decimal string; pass null to clear it. Omit to leave unchanged."),
+  sku: z.string().optional().describe("New SKU. Omit to leave unchanged."),
+  barcode: z.string().optional().describe("New barcode. Omit to leave unchanged."),
+  taxable: z.boolean().optional().describe("New taxable flag. Omit to leave unchanged."),
+  inventoryPolicy: z
+    .enum(["DENY", "CONTINUE"])
+    .optional()
+    .describe("New oversell policy: DENY blocks sales at 0 stock, CONTINUE allows backorders. Omit to leave unchanged."),
+  optionValues: z
+    .array(optionValueInputSchema)
+    .optional()
+    .describe("New option-value assignments (e.g. to rename a size). Omit to leave unchanged."),
 });
 
 const listVariantsSchema = {
-  productId: z.string().describe("Product GID."),
-  first: z.number().int().min(1).max(100).default(50),
+  productId: z.string().describe("Product GID ('gid://shopify/Product/123') whose variants to list."),
+  first: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(50)
+    .describe("Page size — max variants to return (1-100). Default 50."),
 };
 
 const createVariantsSchema = {
-  productId: z.string().describe("Product GID."),
-  variants: z.array(variantCreateSchema).min(1).max(100),
+  productId: z.string().describe("Product GID to add variants to ('gid://shopify/Product/123')."),
+  variants: z
+    .array(variantCreateSchema)
+    .min(1)
+    .max(100)
+    .describe("Variants to create (1-100). Each variant's optionValues must cover all of the product's options."),
   strategy: z
     .enum(["DEFAULT", "REMOVE_STANDALONE_VARIANT"])
     .optional()
     .describe(
-      "DEFAULT: add to existing variants. REMOVE_STANDALONE_VARIANT: replace the auto-created 'Default Title' variant (use on first real variant create).",
+      "DEFAULT: add alongside existing variants. REMOVE_STANDALONE_VARIANT: also delete the auto-created 'Default Title' placeholder (use when adding the first real variants to a new product). Optional.",
     ),
 };
 
 const updateVariantsSchema = {
-  productId: z.string().describe("Product GID."),
-  variants: z.array(variantUpdateSchema).min(1).max(100),
+  productId: z.string().describe("Product GID owning the variants being updated."),
+  variants: z
+    .array(variantUpdateSchema)
+    .min(1)
+    .max(100)
+    .describe("Variants to update (1-100), each identified by its variant GID. Only provided per-variant fields are written."),
 };
 
 const deleteVariantsSchema = {
-  productId: z.string().describe("Product GID."),
-  variantIds: z.array(z.string()).min(1).max(100),
+  productId: z.string().describe("Product GID owning the variants to delete."),
+  variantIds: z
+    .array(z.string())
+    .min(1)
+    .max(100)
+    .describe("Variant GIDs to delete (1-100). The product must retain at least one variant."),
 };
 
 const reorderVariantsSchema = {
-  productId: z.string().describe("Product GID."),
+  productId: z.string().describe("Product GID whose variants are being reordered."),
   positions: z
     .array(
       z.object({
-        id: z.string().describe("Variant GID."),
-        position: z.number().int().min(1),
+        id: z.string().describe("Variant GID to move."),
+        position: z.number().int().min(1).describe("New 1-indexed display position. Must be unique across the product's variants."),
       }),
     )
-    .min(1),
+    .min(1)
+    .describe("Variant GID → new position pairs. Only include variants whose position changes; positions must be unique."),
 };
 
 const addOptionSchema = {
-  productId: z.string().describe("Product GID."),
+  productId: z.string().describe("Product GID to add options to ('gid://shopify/Product/123')."),
   options: z
     .array(
       z.object({
@@ -237,13 +269,18 @@ const addOptionSchema = {
         values: z
           .array(z.string())
           .min(1)
-          .describe("Possible values for this option."),
-        position: z.number().int().min(1).optional(),
+          .describe("Initial possible values for this option, e.g. ['S','M','L']."),
+        position: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe("1-indexed display position of this option among the product's options. Optional."),
       }),
     )
     .min(1)
     .max(3)
-    .describe("Up to 3 options per product (Shopify limit)."),
+    .describe("Options to add. A product can have at most 3 options total (Shopify limit)."),
 };
 
 function formatVariant(v: VariantNode): string {
@@ -265,7 +302,7 @@ export function registerVariantTools(
 ): void {
   server.tool(
     "list_variants",
-    "List all variants of a single product, plus the product's option definitions (Size, Color, etc.) and possible values. For each variant returns: title, GID, price, compareAtPrice, SKU, barcode, current inventory quantity, taxable flag, inventory policy, and the option-value combination that produced it. Use to inspect a product's full SKU matrix before calling create_variants/update_variants/delete_variants.",
+    "List up to `first` variants of a single product, plus the product's option definitions (Size, Color, etc.) and possible values. Read-only, no side effects (requires read_products scope). Returns a text summary: per variant title, GID, price, compareAtPrice, SKU, barcode, current inventory quantity, taxable flag, inventory policy, and the option-value combination. Returns 'Product not found' if the GID doesn't resolve. Use to inspect a product's full SKU matrix before calling create_variants/update_variants/delete_variants.",
     listVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -318,7 +355,7 @@ export function registerVariantTools(
 
   server.tool(
     "create_variants",
-    "Create one or more variants on an existing product. Each variant's optionValues must cover EVERY option declared on the product (Size + Color + Material if there are 3 options) — partial coverage is rejected. New products from create_product start with a single hidden 'Default Title' variant; when adding the first real variants, pass strategy='REMOVE_STANDALONE_VARIANT' so Shopify replaces the placeholder rather than leaving it. inventoryQuantities seeds initial stock per location at create time; for ongoing changes use set_inventory_quantity instead.",
+    "Create one or more variants (SKUs) on an existing product via the Shopify Admin API. Side effect: writes live store data (requires write_products scope); not reversible via this tool (use delete_variants to remove). Each variant's optionValues must cover EVERY option declared on the product — partial coverage is rejected. New products from create_product start with a single hidden 'Default Title' variant; when adding the first real variants, pass strategy='REMOVE_STANDALONE_VARIANT' so Shopify replaces the placeholder. inventoryQuantities seeds initial stock per location at create time; use set_inventory_quantity for ongoing changes. Returns a text summary of the created variants with their GIDs. Use update_variants to edit existing variants.",
     createVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
@@ -352,7 +389,7 @@ export function registerVariantTools(
 
   server.tool(
     "update_variants",
-    "Update one or more existing variants in a single call. Editable fields: price, compareAtPrice (set to null to clear), SKU, barcode, taxable, inventoryPolicy (DENY blocks oversells, CONTINUE allows backorders), and optionValues (e.g. rename a size). Per-variant only; only the fields you provide are written. For inventory quantity changes use set_inventory_quantity — this tool deliberately doesn't accept quantities to keep that audit trail in one place.",
+    "Update one or more existing variants in a single call via the Shopify Admin API. Side effect: mutates live store data immediately (requires write_products scope); price changes affect the storefront right away. Editable fields: price, compareAtPrice (set null to clear), SKU, barcode, taxable, inventoryPolicy, and optionValues. Per-variant; only the fields you provide are written. Inventory quantity is intentionally NOT editable here — use set_inventory_quantity to keep that audit trail in one place. Returns a text summary of the updated variants with their GIDs. Use create_variants to add new variants.",
     updateVariantsSchema,
     async (args) => {
       const data = await client.graphql<{
